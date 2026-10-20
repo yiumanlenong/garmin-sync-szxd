@@ -305,6 +305,17 @@ def verify(args, token: str, acc: str, wait: int = 120):
     print(f"解析结果：成功 {len(ok)} 个文件，失败 {len(bad)} 个")
     for r in bad:
         print(f"  失败：{r.get('fileName')}（成功 {r.get('successNum')} / 失败 {r.get('failNum')}）")
+
+    # 解析失败的不算传过，从台账里摘掉，避免下次被误跳过
+    ledger_path = os.path.join(args.dir, LEDGER_NAME)
+    if bad and os.path.exists(ledger_path):
+        failed = {r.get("fileName") for r in bad}
+        data = json.load(open(ledger_path, encoding="utf-8"))
+        kept = [n for n in data.get("done", []) if n not in failed]
+        if len(kept) != len(data.get("done", [])):
+            json.dump({"done": kept}, open(ledger_path, "w", encoding="utf-8"),
+                      ensure_ascii=False, indent=1)
+            print(f"  已从台账移除 {len(data.get('done', [])) - len(kept)} 个失败文件")
     if bad:
         print("常见原因：该活动已在平台存在（含 App 里删掉的），服务端按开始时间去重，"
               "报「运动数据已被同步过」。")
