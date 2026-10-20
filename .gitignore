@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.szxd_token
+.szxd-uploaded.json
+tcx/
+.DS_Store
