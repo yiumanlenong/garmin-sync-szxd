@@ -116,6 +116,27 @@ python sync.py upload --dir tcx
 ```
 
 看到失败就说明这条没进 App，常见原因就是上面那条「已被同步过」。
+### 想强制重来一次
+
+```bash
+# 1. 删掉台账（或整个 tcx 目录）
+rm tcx/.szxd-uploaded.json
+
+# 2. 重新导出
+python sync.py export --out tcx --types running --tz 8
+
+# 3. 预演，确认清单
+python sync.py upload --dir tcx --dry-run
+
+# 4. 正式上传
+python sync.py upload --dir tcx
+```
+
+三个连带影响先看清楚：
+
+- **换 `--out` 目录 = 换台账**。新目录里没有台账，51 条会全部重传，服务端多半全拒
+- **只改 `--tz` 重新导出、文件名不变**时，台账仍认为"传过"，平台里留的是旧时区的数据。这种必须删台账再传
+- **服务端按开始时间去重**：App 里删掉的记录重传会被拒（`运动数据已被同步过`），删台账也没用
 ## 参数速查
 
 | 命令 | 参数 | 说明 |
