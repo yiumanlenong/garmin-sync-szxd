@@ -238,9 +238,11 @@ def cmd_upload(args):
     existing = []
     if not args.ignore_platform:
         records = fetch_records(token, acc)
-        existing = [(r["runStartTime"], float(r.get("realDistance") or 0))
-                    for r in records if r.get("runStartTime")]
-        print(f"平台导入流水表 {len(existing)} 行（只增不减，含已删除记录）")
+        landed = [r for r in records if r.get("status") == 1 and r.get("runStartTime")]
+        failed = len(records) - len(landed)
+        existing = [(r["runStartTime"], float(r.get("realDistance") or 0)) for r in landed]
+        print(f"平台导入流水：成功入库 {len(landed)} 行，失败 {failed} 行（失败行不参与判重）。"
+              f"注意这张表只增不减，包含历史骑行和 App 里已删除的记录")
 
     ledger_path = os.path.join(args.dir, LEDGER_NAME)
     ledger = json.load(open(ledger_path, encoding="utf-8")) if os.path.exists(ledger_path) else {"done": []}
