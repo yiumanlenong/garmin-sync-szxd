@@ -245,6 +245,8 @@ def cmd_upload(args):
     done = set(ledger.get("done", []))
 
     files = sorted(f for f in os.listdir(args.dir) if f.endswith(".tcx"))
+    if args.match:
+        files = [f for f in files if args.match in f]
     stats = {"skip_ledger": 0, "skip_dup": 0, "ok": 0, "fail": 0}
     for i, name in enumerate(files, 1):
         path = os.path.join(args.dir, name)
@@ -252,7 +254,7 @@ def cmd_upload(args):
             stats["skip_ledger"] += 1
             continue
         start, dist = tcx_meta(path)
-        if start and is_duplicate(start, dist, existing, args.tz):
+        if start and not args.ignore_platform and is_duplicate(start, dist, existing, args.tz):
             stats["skip_dup"] += 1
             print(f"  跳过（已存在）{name} @ {start}")
             continue
@@ -324,6 +326,9 @@ def main():
     u.add_argument("--tz", type=int, default=8)
     u.add_argument("--delay", type=float, default=1.5, help="每个文件之间的间隔秒数")
     u.add_argument("--dry-run", action="store_true", help="只预演判重，不实际上传")
+    u.add_argument("--ignore-platform", action="store_true",
+                   help="忽略平台导入日志，只按本地台账判重。在 App 里删过记录后必须加这个")
+    u.add_argument("--match", help="只处理文件名包含该子串的文件，例如 --match 20261015")
     u.set_defaults(func=cmd_upload)
 
     args = p.parse_args()
