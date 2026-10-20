@@ -234,11 +234,12 @@ def tcx_meta(path: str):
 
 def cmd_upload(args):
     token = load_token()
-    acc = account_id(token)
-    records = fetch_records(token, acc)
-    existing = [(r["runStartTime"], float(r.get("realDistance") or 0))
-                for r in records if r.get("runStartTime")]
-    print(f"平台上已有 {len(existing)} 条记录（含历史导入日志）")
+    existing = []
+    if not args.ignore_platform:
+        records = fetch_records(token, account_id(token))
+        existing = [(r["runStartTime"], float(r.get("realDistance") or 0))
+                    for r in records if r.get("runStartTime")]
+        print(f"平台导入流水表 {len(existing)} 行（只增不减，含已删除记录）")
 
     ledger_path = os.path.join(args.dir, LEDGER_NAME)
     ledger = json.load(open(ledger_path, encoding="utf-8")) if os.path.exists(ledger_path) else {"done": []}
@@ -252,6 +253,7 @@ def cmd_upload(args):
         path = os.path.join(args.dir, name)
         if name in done:
             stats["skip_ledger"] += 1
+            print(f"  跳过（本地台账已传过）{name}")
             continue
         start, dist = tcx_meta(path)
         if start and not args.ignore_platform and is_duplicate(start, dist, existing, args.tz):
@@ -276,6 +278,9 @@ def cmd_upload(args):
         time.sleep(args.delay)
     print(f"完成：上传 {stats['ok']}，跳过重复 {stats['skip_dup']}，"
           f"跳过台账 {stats['skip_ledger']}，失败 {stats['fail']}")
+    if stats["skip_dup"]:
+        print(f"提示：{stats['skip_dup']} 条因平台流水表被判重。"
+              f"若这些记录已在 App 里删除，加 --ignore-platform 重跑。")
 
 
 def is_duplicate(start: str, dist: float, existing, tz_hours: int = 0) -> bool:
@@ -327,7 +332,7 @@ def main():
     u.add_argument("--delay", type=float, default=1.5, help="每个文件之间的间隔秒数")
     u.add_argument("--dry-run", action="store_true", help="只预演判重，不实际上传")
     u.add_argument("--ignore-platform", action="store_true",
-                   help="忽略平台导入日志，只按本地台账判重。在 App 里删过记录后必须加这个")
+                   help="跳过平台导入流水表比对（该表只增不减，App 里删过的记录需加此参数才能重传）")
     u.add_argument("--match", help="只处理文件名包含该子串的文件，例如 --match 20261015")
     u.set_defaults(func=cmd_upload)
 
