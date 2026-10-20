@@ -21,7 +21,7 @@
 ## 安装
 
 ```bash
-git clone https://github.com/<you>/garmin-sync-szxd.git
+git clone https://github.com/yiumanlenong/garmin-sync-szxd.git
 cd garmin-sync-szxd
 pip install garth
 ```
