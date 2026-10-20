@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import base64
 import datetime as dt
+import getpass
 import io
 import json
 import os
@@ -112,6 +113,32 @@ def shift_timestamps(text: str, hours: int) -> str:
     return TS_RE.sub(_sub, text)
 
 
+GARMIN_DIR = os.path.join(HOME, ".garminconnect")
+
+
+def cmd_garmin_login(args):
+    """登录佳明，token 存到 ~/.garminconnect。
+
+    garth 0.4.40 之后不再提供命令行入口（python -m garth 会报
+    No module named garth.__main__），所以登录必须走脚本自己。
+    """
+    try:
+        import garth
+    except ImportError:
+        sys.exit("缺少依赖：pip install garth")
+
+    garth.configure(domain=args.domain)
+    email = args.email or input("佳明邮箱/手机号: ").strip()
+    password = args.password or getpass.getpass("佳明密码（输入时不回显）: ")
+    try:
+        garth.login(email, password,
+                    prompt_mfa=lambda: input("两步验证码（没开两步验证直接回车）: ").strip())
+    except Exception as e:
+        sys.exit(f"登录失败：{e}")
+    garth.save(GARMIN_DIR)
+    print(f"登录成功，token 已保存到 {GARMIN_DIR}")
+
+
 def cmd_export(args):
     try:
         import garth
@@ -119,7 +146,10 @@ def cmd_export(args):
         sys.exit("缺少依赖：pip install garth")
 
     garth.configure(domain=args.garmin_domain)
-    garth.resume(os.path.join(HOME, ".garminconnect"))
+    try:
+        garth.resume(GARMIN_DIR)
+    except FileNotFoundError:
+        sys.exit("还没有佳明登录信息，先运行：python sync.py garmin-login --domain " + args.garmin_domain)
     client = garth.client
 
     acts = client.connectapi("/activitylist-service/activities/search/activities?start=0&limit=1000")
@@ -268,6 +298,12 @@ def is_duplicate(start: str, dist: float, existing, tz_hours: int = 0) -> bool:
 def main():
     p = argparse.ArgumentParser(description="佳明 → 数字心动 历史运动数据同步")
     sub = p.add_subparsers(dest="cmd", required=True)
+
+    g = sub.add_parser("garmin-login", help="登录佳明，token 存到 ~/.garminconnect")
+    g.add_argument("--email", help="佳明邮箱/手机号，不传则交互输入")
+    g.add_argument("--password", help="佳明密码，不建议写在命令行（会进 shell 历史），不传则交互输入")
+    g.add_argument("--domain", default="garmin.cn", help="国区 garmin.cn（默认）/ 国际 garmin.com")
+    g.set_defaults(func=cmd_garmin_login)
 
     a = sub.add_parser("login", help="用手机号 + App 短信验证码换取 token")
     a.add_argument("--phone", required=True)

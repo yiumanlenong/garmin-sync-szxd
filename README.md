@@ -28,13 +28,15 @@ pip install garth
 
 Python 3.9+。`garth` 负责和佳明通信（免 MFA 的 token 登录）。
 
-首次使用先登录佳明，token 会存在 `~/.garminconnect`：
+首次使用先登录佳明，token 会存到 `~/.garminconnect`：
 
 ```bash
-python -m garth login --domain garmin.cn
+python sync.py garmin-login --domain garmin.cn
 ```
 
-国区用 `garmin.cn`，国际区用 `garmin.com`。登录一次可长期复用，脚本会自动续期。
+按提示输入佳明邮箱/手机号和密码；开了两步验证会再要一次 6 位码。国区用 `garmin.cn`，国际区用 `garmin.com`。登录一次可长期复用，脚本会自动续期。
+
+> 不要用 `python -m garth login`：garth 0.4.40 之后删掉了命令行入口，会报 `No module named garth.__main__`。
 
 ## 三步使用
 
@@ -88,6 +90,7 @@ python sync.py upload --dir tcx
 
 | 命令 | 参数 | 说明 |
 | --- | --- | --- |
+| garmin-login | `--email` / `--password` | 不传则交互输入；`--domain` 选国区/国际区 |
 | login | `--phone` / `--code` | App 里获取的短信验证码 |
 | export | `--out` | 输出目录，默认 `tcx` |
 |  | `--types` | 活动类型，默认 `running` |
