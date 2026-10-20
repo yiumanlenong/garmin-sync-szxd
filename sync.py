@@ -234,9 +234,10 @@ def tcx_meta(path: str):
 
 def cmd_upload(args):
     token = load_token()
+    acc = account_id(token)
     existing = []
     if not args.ignore_platform:
-        records = fetch_records(token, account_id(token))
+        records = fetch_records(token, acc)
         existing = [(r["runStartTime"], float(r.get("realDistance") or 0))
                     for r in records if r.get("runStartTime")]
         print(f"平台导入流水表 {len(existing)} 行（只增不减，含已删除记录）")
@@ -280,7 +281,33 @@ def cmd_upload(args):
           f"跳过台账 {stats['skip_ledger']}，失败 {stats['fail']}")
     if stats["skip_dup"]:
         print(f"提示：{stats['skip_dup']} 条因平台流水表被判重。"
-              f"若这些记录已在 App 里删除，加 --ignore-platform 重跑。")
+              f"注意 App 删记录不会释放平台去重键，这类记录重传也会被服务端拒绝。")
+    if stats["ok"] and not args.dry_run:
+        verify(args, token, acc)
+
+
+def verify(args, token: str, acc: str, wait: int = 120):
+    """上传接口只代表"文件收下了"，解析是异步的，这里回查真实结果。"""
+    print(f"等待 {wait} 秒后核对解析结果……", flush=True)
+    time.sleep(wait)
+    rows, page = [], 1
+    while True:
+        body = json.dumps({"accountId": acc, "businessId": 1, "subBusinessId": 11,
+                           "pageNo": page, "pageSize": 100}).encode()
+        st, raw = _req(SZ_ADMIN + "/file/page", body, sz_headers(token))
+        batch = (_json(raw).get("data") or {}).get("results") or []
+        rows += batch
+        if len(batch) < 100:
+            break
+        page += 1
+    bad = [r for r in rows[: args.verify_limit] if r.get("failNum")]
+    ok = [r for r in rows[: args.verify_limit] if r.get("successNum")]
+    print(f"解析结果：成功 {len(ok)} 个文件，失败 {len(bad)} 个")
+    for r in bad:
+        print(f"  失败：{r.get('fileName')}（成功 {r.get('successNum')} / 失败 {r.get('failNum')}）")
+    if bad:
+        print("常见原因：该活动已在平台存在（含 App 里删掉的），服务端按开始时间去重，"
+              "报「运动数据已被同步过」。")
 
 
 def is_duplicate(start: str, dist: float, existing, tz_hours: int = 0) -> bool:
@@ -332,8 +359,9 @@ def main():
     u.add_argument("--delay", type=float, default=1.5, help="每个文件之间的间隔秒数")
     u.add_argument("--dry-run", action="store_true", help="只预演判重，不实际上传")
     u.add_argument("--ignore-platform", action="store_true",
-                   help="跳过平台导入流水表比对（该表只增不减，App 里删过的记录需加此参数才能重传）")
+                   help="跳过平台流水表比对。注意：App 删记录不释放服务端去重键，这类活动重传仍会被拒")
     u.add_argument("--match", help="只处理文件名包含该子串的文件，例如 --match 20261015")
+    u.add_argument("--verify-limit", type=int, default=20, help="核对最近多少个文件的结果，默认 20")
     u.set_defaults(func=cmd_upload)
 
     args = p.parse_args()
